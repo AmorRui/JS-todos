@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" type="text/css" href="todos.css">
+    <title>模拟Todos</title>
+</head>
+<body>
+<!-- 页面头部 -->
+<header>
+    <h1>Todos</h1>
+</header>
+<!-- 页面核心 -->
+<div id="container">
+    <!-- 所有的内容都是添加在这个里面的 -->
+    <div class="masterView" style="display: block">
+        <div class="newTask">
+            <!-- 文本框，在JS中用ID获取,用来输入内容 -->
+            <input type="text" placeholder="What needs to be done?" id="massage">
+        </div>
+        <!-- 盒子中的全选行，没有数据时隐藏 -->
+        <div class="markAll" id="markAll" style="display: none">
+            <!-- 全选按钮 -->
+            <a href="javascript:;" class="icon-checkbox"></a>
+            <span>Mark all as complete  </span>
+        </div>
+        <!-- 当有短记的时候，显示的内一条短记的内容列表，JS中获取用ID -->
+        <ul class="taskList" id="taskList">
+            <!-- 每一条短记的内容 -->
+            <!-- <li class="task" style="display: list-item;">
+                 &lt;!&ndash; 承载短记 &ndash;&gt;
+                 <div class="viewTaskView over">
+                     &lt;!&ndash; 短记前面的选择按钮 &ndash;&gt;
+                     <a href="javascript:;" class="icon-checkbox"></a>
+                     &lt;!&ndash; 短记的真实内容 &ndash;&gt;
+                     <p>我要吃饭</p>
+                     &lt;!&ndash; 短记后面的删除按钮 &ndash;&gt;
+                     <a href="javascript:;" class="icon-delete active"></a>
+                 </div>
+             </li>-->
+        </ul>
+        <!-- 短记下面的条数记录，没有数据是隐藏 -->
+        <footer id="dataNum" style="display: none">
+            <!-- 有多少条 -->
+            <div class="count" id="count">1 item left</div>
+            <!-- 当有复选框被选中的时候，点击可以删除选中的项 -->
+            <button style="display: none" id="delete">Clear 1 completed item</button>
+        </footer>
+    </div>
+</div>
+<!-- 页面底部 -->
+<footer>
+    <p>Double-click to edit a todo.</p>
+    <p>
+        Created by
+        <br>
+        <a href="javascript:;">Uzi Kilon</a>.
+        <br>
+    <p><a href="javascript:;">Click here for non-optimized version</a></p>
+    </div>
+</footer>
+<a class="github" href="javascript:;">
+    <img src="https://s3.amazonaws.com/github/ribbons/forkme_right_gray_6d6d6d.png" alt="Fork me on GitHub">
+</a>
+
+
+<script>
+    /* 思路（代码顺序）
+     * 顺序一
+     * 1. 当文本框内获取光标以后，敲击回车键
+     * 2. 判断文本框内容是否为空，如不为空保存下来，如果为空什么都不做
+     *
+     * 顺序二（敲击回车判定不为空以后）
+     * 3. 创建一个数组，用于保存每次的value值
+     * 4. 把之前记录的value值存入数组中
+     *    - 为了后续操作应以对象形式保存每一条数据
+     *    - 对象内容包括，value，编号（为了后面删除使用），isDel（判断是否删除）
+     * 5. 保存好以后，让文本框内容为空
+     *
+     * 顺序三（敲击回车判定不为空以后并且向数组中添加好以后）
+     * 6. 获取全选行 和 记录数据行 和 内容列表位置
+     *    1 根据数组中的内容是否为空判定
+     *      - 单独以一个函数的形式存在(dataBind)，因为每次添加数据都要执行，后续删除数据以后也要从新执行
+     *    2 如果有内容，就把全选行和记录数据行显示
+     *    3 如果没有内容，就不添加，并且全选行和记录数据行隐藏
+     *    4 当前数据存储到数组中的同时，添加到页面中
+     *
+     * 顺序四（根据页面上的内容，如果taskList列表中有内容，就绑定点击事件）
+     * 7. 每次页面渲染完成以后，都可以知道页面上到底有没有内容了
+     *    - 这个时候获取列表就可以了
+     * 8. 给每一个li添加鼠标移入移除事件
+     *    - 控制 li 下面的 div 添加和移除 over 类名
+     * 9. 给每一个 div 下面的 选中按钮 添加点击事件
+     *    9-1 点击的时候，如果是未完成状态，变成完成状态，否则反之
+     *        - 自己本身的类名 添加或删除 checked
+     *        - 让 div 的类名 添加或删除 completed
+     *        - 当前列表项（li）的准备删除状态变成 1 或 0
+     * 10. 全选行按钮添加点击事件
+     *    10-1 点击的时候，如果是未完成状态，变成完成状态，否则反之
+     * */
+
+    // 1. 当文本框内获取光标以后，敲击回车键
+    var massage = document.getElementById('massage');  //-> 获取文本框元素
+    // 3. 创建一个数组，用于保存每次的value值
+    var dataArr = [];  //-> 数组用于保存数据
+    var num = 0; //-> 数字用于记录当前是第几条
+    // 6 获取全选行和记录数据行和内容列表位置
+    var markAll = document.getElementById('markAll');    //-> 全选行
+    var taskList = document.getElementById('taskList');  //-> 内容列表
+    var dataNum = document.getElementById('dataNum');    //-> 记录条数行
+    // 7. 列表数组
+    var taskListArr = null;
+    massage.onfocus = function () {
+        // 1-1 敲击键盘
+        window.onkeyup = function (e) {
+            // 1-2 判断是回车键
+            if (e.keyCode == 13) {
+                // 2. 判断文本框内容是否为空
+                if (!(massage.value.length == 0)) {
+                    // 2-2 文本框内容不为空保存下来
+                    var value = massage.value;  //-> 用于保存文本框内容
+                    num++;
+                    // 3-1 创建一个对象记录每一条数据
+                    var dataObj = {
+                        content: value,  //-> 内容
+                        index: num,      //-> 编号
+                        del: 0     //-> 是否准备删除（默认不删除）
+                    };
+                    // 3-2 添加到准备好的数组中（dataArr）
+                    dataArr.push(dataObj);
+                    massage.value = '';
+                    // 6. 数据绑定
+                    dataBind(dataArr);
+                    taskList.appendChild(createList(dataObj));
+                    taskListArr = taskList.getElementsByTagName('li');
+                    eventBind(taskListArr);
+                    dataNumChange(taskListArr)
+                } else {
+                    // 2-1 文本框内容为空什么都不做
+                    return
+                }
+            }
+        }
+    };
+
+    // 功能函数
+    // 1. 数据绑定函数
+    function dataBind(data) {
+        // 6-1 判断数组中是否有数据
+        if (!data.length) { // 没有数据的时候 data.length == 0 ，为false
+            // 6-3 如果没有内容，就不添加，并且全选行和记录数据行隐藏
+            markAll.style.display = 'none';
+            dataNum.style.display = 'none';
+            markAll.children[0].className = 'icon-checkbox';
+        } else { // 否则为有数据
+            // 6-2 全选行和记录数据行显示
+            markAll.style.display = 'block';
+            dataNum.style.display = 'block';
+        }
+    }
+
+    // 2. 每次敲击回车的时候根据数据绑定到页面
+    function createList(item) {
+        var oLi = document.createElement('li'); //-> 创建 li 标签
+        oLi.setAttribute('index', item.index);    //-> 向 li 元素添加自定义属性，编号
+        oLi.setAttribute('del', item.del);        //-> 向 li 元素添加自定义属性，是否准备删除
+        oLi.className = 'task';                  //-> 给 li 添加样式类名
+        oLi.style.display = 'list-item';         //-> 给 li 添加 display 属性
+        var oDiv = document.createElement('div'); //-> 创建 div 标签
+        oDiv.className = item.del == 0 ? 'viewTaskView' : 'viewTaskView completed'; //-> 给 div 添加样式类名
+        var oACheck = document.createElement('a');   //-> 创建用于选中的 a 标签
+        oACheck.href = 'javascript:;';
+        oACheck.className = item.del == 0 ? "icon-checkbox" : "icon-checkbox checked";
+        var oP = document.createElement('p');        //-> 创建用于承载内容的 p 标签
+        oP.innerText = item.content;
+        var oADelete = document.createElement('a');  //-> 创建用于删除的 a标签
+        oADelete.href = 'javascript:;';
+        oADelete.className = "icon-delete";
+        // 把三个元素添加到 div 中
+        oDiv.appendChild(oACheck);
+        oDiv.appendChild(oP);
+        oDiv.appendChild(oADelete);
+        // 把 div 添加到 li 中
+        oLi.appendChild(oDiv);
+        return oLi
+    }
+
+    // 3. 循环列表项添加事件
+    function eventBind(arr) {
+        // 循环绑定事件，给每一个li添加鼠标移入移出事件
+        for (var i = 0; i < arr.length; i++) {
+            // 8-1 因为这些事件都是绑定在 li 下面的 div 上的
+            arr[i].onmouseover = function () {
+                // 我们在事件里面操作的是div,添加over 类名，让删除图标显示
+                var div = this.children[0];
+                div.className += ' over';
+                // 要给 选中 按钮添加点击事件
+                var aCheck = div.firstChild;
+                // 9. 给每一个 div 下面的 选中按钮 添加点击事件
+                aCheck.onclick = function () {
+                    // 通过 li 的准备删除状态确定按钮是否选中
+                    onOff.call(this);
+                    var flag = true;
+                    for (var i = 0; i < arr.length; i++) {
+                        if (arr[i].getAttribute('del') == 0) {
+                            flag = false;
+                        }
+                    }
+                    if (flag) {
+                        markAll.children[0].className += ' checked';
+                    } else {
+                        markAll.children[0].className = markAll.children[0].className.replace(' checked', '');
+                    }
+                    dataNumChange(taskListArr);
+                };
+
+                // 11. 给每一个 div 下面的 删除按钮 添加点击事件
+                var aDelete = div.lastChild;
+                aDelete.onclick = function () {
+                    var index = this.parentNode.parentNode.getAttribute('index');
+                    for (var i = 0; i < dataArr.length; i++) {
+                        if (dataArr[i].index == index) {
+                            dataArr.splice(i, 1)
+                        }
+                    }
+                    dataBind(dataArr);
+                    taskList.innerHTML = '';
+                    for (var i = 0; i < dataArr.length; i++) {
+                        taskList.appendChild(createList(dataArr[i]));
+                    }
+                    taskListArr = taskList.getElementsByTagName('li');
+                    eventBind(taskListArr);
+                    dataNumChange(taskListArr)
+                };
+
+                // 12. 统一删除按钮绑定事件
+                dataNum.children[1].onclick = function () {
+                    for (var i = 0; i < arr.length; i++) {
+                        if (arr[i].getAttribute('del') == 1) {
+                            for (var j = 0; j < dataArr.length; j++) {
+                                if (dataArr[j].index == arr[i].getAttribute('index')) {
+                                    dataArr.splice(j, 1)
+                                }
+                            }
+                        }
+                    }
+                    dataBind(dataArr);
+                    taskList.innerHTML = '';
+                    for (var i = 0; i < dataArr.length; i++) {
+                        taskList.appendChild(createList(dataArr[i]));
+                    }
+                    taskListArr = taskList.getElementsByTagName('li');
+                    eventBind(taskListArr);
+                    dataNumChange(taskListArr)
+                }
+            };
+            // 8-2 给li 添加鼠标移除事件
+            arr[i].onmouseout = function () {
+                // 让div 取消 over 类名，删除图标隐藏
+                var div = this.children[0];
+                div.className = div.className.replace(' over', '');
+            };
+        }
+        // 10. 还要给全选行的 选中 按钮添加点击事件
+        markAll.children[0].onclick = function () {
+            // 通过当前按钮的类名来判断就好
+            if (this.className == 'icon-checkbox') {
+                this.className += ' checked';
+                for (var i = 0; i < taskListArr.length; i++) {
+                    var item = taskListArr[i];
+                    if (item.getAttribute('del') == 0) {
+                        item.setAttribute('del', 0);
+                        onOff.call(item.children[0].firstChild);
+                    }
+                }
+            } else {
+                this.className = this.className.replace(' checked', '');
+                for (var i = 0; i < taskListArr.length; i++) {
+                    var item = taskListArr[i];
+                    if (item.getAttribute('del') == 1) {
+                        item.setAttribute('del', 1);
+                        onOff.call(item.children[0].firstChild);
+                    }
+                }
+            }
+            dataNumChange(taskListArr);
+        };
+        // 确定列表项中的每一项是选中还是没选中
+        function onOff() {
+            /*
+             * 9-1 点击的时候，如果是未完成状态，变成完成状态，否则反之
+             * 通过当前列表项（li）的准备删除状态来判断
+             */
+            // 当前是 a 父级是 div 再父级是 li ，获取del，如果为 0 证明没选中
+            if (this.parentNode.parentNode.getAttribute('del') == 0) {
+                // 自己本身的类名 添加 checked
+                this.className += ' checked';
+                // 让 div 的类名 添加 completed
+                this.parentNode.className += ' completed';
+                // 当前列表项（li）的准备删除状态变成 1
+                this.parentNode.parentNode.setAttribute('del', 1);
+                for (var i = 0; i < dataArr.length; i++) {
+                    if (dataArr[i].index == this.parentNode.parentNode.getAttribute('index')) {
+                        dataArr[i].del = 1;
+                    }
+                }
+            } else {
+                // 自己本身的类名 删除 checked
+                this.className = this.className.replace(' checked', '');
+                // 让 div 的类名 添加 completed
+                this.parentNode.className = this.parentNode.className.replace(' completed', '');
+                // 当前列表项（li）的准备删除状态变成 1
+                this.parentNode.parentNode.setAttribute('del', 0);
+                for (var i = 0; i < dataArr.length; i++) {
+                    if (dataArr[i].index == this.parentNode.parentNode.getAttribute('index')) {
+                        dataArr[i].del = 0;
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. 底部记录数据变化
+    function dataNumChange(arr) {
+        if (arr.length) {
+            var delNum = 0;
+            for (var i = 0; i < arr.length; i++) {
+                if (arr[i].getAttribute('del') == 1) {
+                    delNum++;
+                }
+            }
+            dataNum.children[0].innerText = (arr.length - delNum ) + ' item left';
+            if (delNum != 0) {
+                dataNum.children[1].style.display = 'block';
+                dataNum.children[1].innerText = 'Clear ' + delNum + ' completed item'
+            } else {
+                dataNum.children[1].style.display = 'none';
+            }
+        }
+    }
+</script>
+</body>
+</html>
